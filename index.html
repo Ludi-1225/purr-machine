@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Purr machine</title>
+<style>
+  :root{
+    --bg:#f6faf9;
+    --ink:#2a3434;
+    --muted:#727d7c;
+    --rule:#d9e5e4;
+    --accent:#1a696a;
+    --accent-soft:#cfe3e2;
+    --paper:#ffffff;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font:16px/1.55 var(--mono);
+    -webkit-font-smoothing:antialiased;
+    padding:36px 28px 64px;
+  }
+  .wrap{max-width:1080px;margin:0 auto}
+
+  header{border-bottom:1px solid var(--rule);padding-bottom:16px;margin-bottom:26px}
+  .kicker{
+    font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--muted);margin:0 0 10px;
+  }
+  h1{
+    font-family:var(--serif);font-weight:400;font-size:clamp(30px,4.4vw,46px);
+    letter-spacing:-.01em;margin:0 0 8px;line-height:1.05;
+  }
+  h1 em{font-style:italic;color:var(--accent)}
+  .sub{margin:0;max-width:56ch;color:var(--muted);font-size:13.5px;line-height:1.6}
+
+  .grid{display:grid;grid-template-columns:minmax(0,1fr) 288px;gap:34px;align-items:start}
+
+  /* ---------- stage ---------- */
+  .stage{min-width:0}
+  .catbox{
+    position:relative;background:var(--paper);border:1px solid var(--rule);
+    border-radius:2px;padding:6px 6px 0;overflow:hidden;
+  }
+  svg.cat{display:block;width:100%;height:auto;max-width:560px;margin:0 auto}
+  .cat .line{fill:none;stroke:var(--ink);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .cat .fill{fill:#f1f6f5;stroke:none}
+  .cat .fur{fill:none;stroke:var(--ink);stroke-width:1.15;stroke-linecap:round;opacity:.55}
+  .cat .pupil{fill:var(--ink)}
+  .ripple{fill:none;stroke:var(--accent);stroke-width:1.6;stroke-linecap:round}
+  .cat .nose{fill:var(--accent)}
+  .ripple-mark{fill:none;stroke:var(--accent);stroke-width:1.6;stroke-linecap:round}
+
+  .state-tag{
+    position:absolute;right:12px;top:10px;font-size:10.5px;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--muted);
+  }
+  .state-tag b{color:var(--accent);font-weight:400}
+
+  .scope{
+    margin-top:18px;background:var(--paper);border:1px solid var(--rule);
+    border-radius:2px;padding:10px 12px 8px;
+  }
+  canvas#scope{display:block;width:100%;height:150px}
+  .scope-cap{
+    display:flex;justify-content:space-between;gap:12px;font-size:10.5px;
+    color:var(--muted);letter-spacing:.04em;padding-top:6px;border-top:1px solid var(--rule);
+    margin-top:6px;
+  }
+
+  /* ---------- rack ---------- */
+  .rack{border-left:1px solid var(--rule);padding-left:22px}
+  .rack-h{
+    font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);
+    margin:0 0 16px;
+  }
+  .ctl{margin-bottom:19px}
+  .ctl:last-of-type{margin-bottom:0}
+  .ctl-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:5px}
+  .ctl-top label{font-size:12px;letter-spacing:.02em}
+  .ctl-top .unit{color:var(--muted);font-size:10.5px}
+  .val{font-size:13px;color:var(--accent);font-variant-numeric:tabular-nums}
+  .note{font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums;margin-top:3px;display:block}
+
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;width:100%;height:18px;background:transparent;
+    margin:0;cursor:ew-resize;
+  }
+  input[type=range]:focus{outline:none}
+  input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--rule)}
+  input[type=range]::-moz-range-track{height:2px;background:var(--rule)}
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:11px;height:16px;margin-top:-7px;border-radius:1px;
+    background:var(--accent);border:none;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:11px;height:16px;border-radius:1px;background:var(--accent);border:none;
+  }
+  input[type=range]:focus-visible::-webkit-slider-thumb{outline:2px solid var(--accent-soft);outline-offset:2px}
+
+  .band{margin-top:11px;position:relative;height:24px;font-variant-numeric:tabular-nums}
+  .band-track{position:absolute;left:0;right:0;top:4px;height:4px;background:var(--rule)}
+  .band-in{position:absolute;top:4px;height:4px;background:var(--accent-soft);outline:1px solid var(--accent-soft)}
+  .band-mark{position:absolute;top:0;width:1px;height:12px;background:var(--accent)}
+  .band-lab{
+    position:absolute;top:15px;font-size:9.5px;color:var(--muted);letter-spacing:.06em;
+    white-space:nowrap;
+  }
+  .band-lab.left{left:0}
+  .band-lab.mid{left:58%;transform:translateX(-50%)}
+  .band-lab.right{right:0}
+
+  .transport{display:flex;gap:8px;margin:22px 0 18px}
+  button{
+    font:inherit;font-size:12px;letter-spacing:.05em;padding:8px 13px;cursor:pointer;
+    background:var(--paper);color:var(--ink);border:1px solid var(--rule);border-radius:2px;
+    transition:border-color .12s, color .12s, background .12s;
+  }
+  button:hover{border-color:var(--muted)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#f6faf9}
+  button.primary:hover{background:#155455;border-color:#155455}
+  button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  .readout{border-top:1px solid var(--rule);padding-top:12px}
+  .readout dl{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin:0;font-size:11.5px}
+  .readout dt{color:var(--muted)}
+  .readout dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+  .readout dd.out{color:var(--accent)}
+
+  footer{
+    margin-top:34px;border-top:1px solid var(--rule);padding-top:14px;
+    font-size:11.5px;color:var(--muted);max-width:74ch;line-height:1.65;
+  }
+  footer b{color:var(--ink);font-weight:400}
+
+  @media (max-width:560px){
+    .scope-cap{font-size:10px;gap:8px}
+    .scope-cap span:first-child{text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
+    .scope-cap span:last-child{flex:none}
+  }
+  @media (max-width:800px){
+    body{padding:24px 18px 48px}
+    .grid{grid-template-columns:minmax(0,1fr);gap:26px}
+    .rack{border-left:none;border-top:1px solid var(--rule);padding-left:0;padding-top:20px}
+    .transport{margin-top:18px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none !important}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="kicker">instrument · felis catus</p>
+    <h1>Purr <em>machine</em></h1>
+    <p class="sub">A cat's purr is not a tone — it is a pulse train at 25&ndash;50&nbsp;Hz, each pulse a small
+    glottal thump. Set the fundamental, sharpen the pulses, then turn the device on.</p>
+  </header>
+
+  <div class="grid">
+
+    <section class="stage">
+      <div class="catbox">
+        <span class="state-tag" id="stateTag">purr <b>off</b></span>
+        <svg class="cat" viewBox="0 0 400 342" role="img" aria-label="A cat's face with closed eyes">
+          <g id="catGroup">
+
+            <!-- ears, drawn first so the head covers their bases -->
+            <path class="fill" d="M120 150 L96 44 L196 104 Z"/>
+            <path class="line" d="M120 150 L96 44 L196 104"/>
+            <path class="fur"  d="M127 136 L110 72 L176 112"/>
+
+            <path class="fill" d="M280 150 L304 44 L204 104 Z"/>
+            <path class="line" d="M280 150 L304 44 L204 104"/>
+            <path class="fur"  d="M273 136 L290 72 L224 112"/>
+
+            <!-- head -->
+            <ellipse class="fill" cx="200" cy="182" rx="104" ry="98"/>
+            <ellipse class="line" cx="200" cy="182" rx="104" ry="98" fill="none"/>
+
+            <!-- brow: two short flicks above the eyes -->
+            <path class="fur" d="M138 132 q16 -8 30 -2"/>
+            <path class="fur" d="M262 132 q-16 -8 -30 -2"/>
+
+            <!-- eyes: closed arcs while purring, open otherwise -->
+            <g id="eyesClosed">
+              <path class="line" d="M142 172 q22 -20 44 0"/>
+              <path class="line" d="M214 172 q22 -20 44 0"/>
+            </g>
+            <g id="eyesOpen" style="display:none">
+              <ellipse class="pupil" cx="164" cy="174" rx="9" ry="13"/>
+              <ellipse class="pupil" cx="236" cy="174" rx="9" ry="13"/>
+            </g>
+
+            <!-- nose -->
+            <path class="nose" d="M188 214 L212 214 L200 224 Z"/>
+            <!-- muzzle: the two lips of a cat's mouth -->
+            <path class="line" d="M200 224 L200 232"/>
+            <path class="line" d="M200 232 q-13 11 -24 2"/>
+            <path class="line" d="M200 232 q13 11 24 2"/>
+
+            <!-- whiskers: three a side, fanning -->
+            <path class="fur" d="M170 216 L74 200 M168 226 L66 228 M172 236 L82 254"/>
+            <path class="fur" d="M230 216 L326 200 M232 226 L334 228 M228 236 L318 254"/>
+
+            <!-- throat vibration: three arcs below the muzzle, on the chest -->
+            <g id="ripples">
+              <path class="ripple" id="r0" d="M182 284 A18 18 0 0 0 218 284"/>
+              <path class="ripple" id="r1" d="M168 284 A32 32 0 0 0 232 284"/>
+              <path class="ripple" id="r2" d="M154 284 A46 46 0 0 0 246 284"/>
+            </g>
+
+          </g>
+        </svg>
+      </div>
+
+      <div class="scope">
+        <canvas id="scope" width="900" height="300" aria-label="Waveform of the purr pulse train"></canvas>
+        <div class="scope-cap">
+          <span id="scopeMode">waveform · model · 140&nbsp;ms window</span>
+          <span id="scopeScale">peak 0.00 · auto-gain</span>
+        </div>
+      </div>
+    </section>
+
+    <aside class="rack">
+      <p class="rack-h">parameters</p>
+
+      <div class="ctl">
+        <div class="ctl-top">
+          <label for="f0">fundamental</label>
+          <span class="unit">f₀ · Hz</span>
+        </div>
+        <input id="f0" type="range" min="18" max="60" step="0.5" value="27">
+        <div class="ctl-top" style="margin-top:5px">
+          <span class="val" id="f0v">27.0 Hz</span>
+          <span class="note" style="margin:0" id="f0period">period 37.0 ms</span>
+        </div>
+        <div class="band">
+          <div class="band-track"></div>
+          <div class="band-in" id="bandIn"></div>
+          <div class="band-mark" id="bandMark"></div>
+          <span class="band-lab left">18</span>
+          <span class="band-lab mid">purr band 25–50</span>
+          <span class="band-lab right">60</span>
+        </div>
+      </div>
+
+      <div class="ctl">
+        <div class="ctl-top">
+          <label for="sharp">pulse sharpness</label>
+          <span class="unit">γ</span>
+        </div>
+        <input id="sharp" type="range" min="0" max="1" step="0.01" value="0.42">
+        <span class="note" id="sharpv">duty 26% · sharp thump</span>
+      </div>
+
+      <div class="ctl">
+        <div class="ctl-top">
+          <label for="rich">richness</label>
+          <span class="unit">low-pass · Hz</span>
+        </div>
+        <input id="rich" type="range" min="120" max="1400" step="10" value="620">
+        <span class="note" id="richv">22 harmonics under the cutoff</span>
+      </div>
+
+      <div class="ctl">
+        <div class="ctl-top">
+          <label for="breath">breath</label>
+          <span class="unit">noise mix</span>
+        </div>
+        <input id="breath" type="range" min="0" max="1" step="0.01" value="0.16">
+        <span class="note" id="breathv">16% air</span>
+      </div>
+
+      <div class="ctl">
+        <div class="ctl-top">
+          <label for="level">level</label>
+          <span class="unit">output</span>
+        </div>
+        <input id="level" type="range" min="0" max="1" step="0.01" value="0.7">
+        <span class="note" id="levelv">70%</span>
+      </div>
+
+      <div class="transport">
+        <button class="primary" id="play">let it purr</button>
+        <button id="reset">reset</button>
+      </div>
+
+      <div class="readout">
+        <dl>
+          <dt>period</dt><dd id="roPeriod">37.0 ms</dd>
+          <dt>harmonics</dt><dd id="roHarm">22</dd>
+          <dt>band verdict</dt><dd class="out" id="roBand">in band</dd>
+          <dt>pulse rate</dt><dd id="roRate">27 / s</dd>
+        </dl>
+      </div>
+    </aside>
+
+  </div>
+
+  <footer>
+    <b>Where the numbers come from.</b> Domestic cats purr in a band that measured recordings put
+    around <b>25&ndash;50&nbsp;Hz</b>; that band and the pulse-train shape are the model here — nothing
+    below is a recording. The popular claim that 25&ndash;50&nbsp;Hz vibration speeds bone healing
+    rests on small studies, largely from one group, so treat it as a hypothesis rather than a
+    mechanism. The instrument is deliberately simplified: a real purr's pulse shape and level both
+    drift with each breath, and the arcs under the chin move at a legible 1&ndash;2&nbsp;Hz rather than at
+    the fundamental &mdash; 27&nbsp;Hz would strobe rather than inform.
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------------- state ---------------- */
+  var P = { f0:27, sharp:0.42, rich:620, breath:0.16, level:0.7, playing:false };
+  var DEFAULTS = { f0:27, sharp:0.42, rich:620, breath:0.16, level:0.7 };
+  var BAND_LO = 25, BAND_HI = 50, SLIDER_LO = 18, SLIDER_HI = 60, WINDOW = 0.14;
+
+  var $ = function(id){ return document.getElementById(id); };
+  var el = {
+    f0:$('f0'), sharp:$('sharp'), rich:$('rich'), breath:$('breath'), level:$('level'),
+    f0v:$('f0v'), f0period:$('f0period'), sharpv:$('sharpv'), richv:$('richv'),
+    breathv:$('breathv'), levelv:$('levelv'),
+    roPeriod:$('roPeriod'), roHarm:$('roHarm'), roBand:$('roBand'), roRate:$('roRate'),
+    bandIn:$('bandIn'), bandMark:$('bandMark'), bandLab:$('bandLab'),
+    stateTag:$('stateTag'), play:$('play'), reset:$('reset'),
+    eyesClosed:$('eyesClosed'), eyesOpen:$('eyesOpen'), ripples:$('ripples'),
+    catGroup:$('catGroup'), scope:$('scope'), scopeMode:$('scopeMode')
+  };
+
+  /* ---------------- deterministic noise ---------------- */
+  function hash(n){
+    var x = Math.sin(n * 127.1 + 311.7) * 43758.5453123;
+    return (x - Math.floor(x)) * 2 - 1;
+  }
+  function noiseAt(t){
+    var s = Math.floor(t * 5000);
+    var fr = t * 5000 - s;
+    var a = hash(s), b = hash(s + 1);
+    return a + (b - a) * fr;
+  }
+
+  /* ---------------- signal model ---------------- */
+  function harmonicsUnder(cut){
+    return Math.max(3, Math.min(28, Math.floor(cut / P.f0)));
+  }
+
+  function model(t){
+    var f = P.f0;
+    var k = 1 + P.sharp * 7;                 // pulse sharpness exponent
+    var env = Math.pow(0.5 + 0.5 * Math.sin(2 * Math.PI * f * t), k);
+    var cut = P.rich;
+    var N = harmonicsUnder(cut);
+    var car = 0, norm = 0;
+    for (var n = 1; n <= N; n++){
+      var w = 1 / Math.pow(n, 0.9);
+      var roll = 1 / (1 + Math.pow(n * f / cut, 4));
+      var a = w * roll;
+      car += a * Math.sin(2 * Math.PI * n * f * t + n * 0.6);
+      norm += a;
+    }
+    car = norm > 0 ? car / norm : 0;
+    var air = noiseAt(t) * P.breath * 0.42;
+    return P.level * (env * car * 1.45 + air);
+  }
+
+  function duty(){
+    var k = 1 + P.sharp * 7, hi = 0, S = 240;
+    for (var i = 0; i < S; i++){
+      var x = i / S;
+      if (Math.pow(0.5 + 0.5 * Math.sin(2 * Math.PI * x), k) > 0.5) hi++;
+    }
+    return hi / S;
+  }
+
+  /* ---------------- readouts ---------------- */
+  function fmt(n, d){ return n.toFixed(d); }
+
+  function syncUI(){
+    var f = P.f0;
+    el.f0v.textContent = fmt(f,1) + ' Hz';
+    el.f0period.textContent = 'period ' + fmt(1000/f,1) + ' ms';
+    el.roPeriod.textContent = fmt(1000/f,1) + ' ms';
+    el.roRate.textContent = fmt(f,1) + ' / s';
+
+    var d = duty();
+    el.sharpv.textContent = 'duty ' + Math.round(d*100) + '% · ' +
+      (d < 0.18 ? 'pinprick pulse' : d < 0.33 ? 'sharp thump' : d < 0.5 ? 'soft thump' : 'smeared hum');
+
+    var N = harmonicsUnder(P.rich);
+    el.richv.textContent = N + (N === 1 ? ' harmonic' : ' harmonics') + ' under the cutoff';
+    el.roHarm.textContent = String(N);
+
+    el.breathv.textContent = Math.round(P.breath*100) + '% air';
+    el.levelv.textContent = Math.round(P.level*100) + '%';
+
+    // band strip
+    var pct = function(v){ return (v - SLIDER_LO) / (SLIDER_HI - SLIDER_LO) * 100; };
+    el.bandIn.style.left = pct(BAND_LO) + '%';
+    el.bandIn.style.width = (pct(BAND_HI) - pct(BAND_LO)) + '%';
+    el.bandMark.style.left = pct(f) + '%';
+
+    var verdict, inBand = f >= BAND_LO && f <= BAND_HI;
+    if (inBand) verdict = 'in band';
+    else if (f < BAND_LO) verdict = 'below band';
+    else verdict = 'above band';
+    el.roBand.textContent = verdict;
+    el.roBand.style.color = inBand ? '' : '#8a5a1f';
+
+    // playing state visuals
+    el.stateTag.innerHTML = P.playing ? 'purr <b>on</b>' : 'purr <b>off</b>';
+    el.play.textContent = P.playing ? 'hush' : 'let it purr';
+    el.eyesClosed.style.display = P.playing ? '' : 'none';
+    el.eyesOpen.style.display = P.playing ? 'none' : '';
+    el.ripples.style.display = (P.playing && !reduceMotion) ? '' : 'none';
+  }
+
+  /* ---------------- audio ---------------- */
+  var A = null;
+
+  function pulseCurve(k){
+    var n = 1024, c = new Float32Array(n);
+    for (var i = 0; i < n; i++){
+      var x = i / (n - 1) * 2 - 1;
+      c[i] = Math.pow(0.5 + 0.5 * x, k);
+    }
+    return c;
+  }
+
+  function buildAudio(){
+    var Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return false;
+    var ctx = new Ctx();
+    var master = ctx.createGain(); master.gain.value = 0;
+    master.connect(ctx.destination);
+
+    // carrier: saw at f0 -> lowpass
+    var saw = ctx.createOscillator(); saw.type = 'sawtooth'; saw.frequency.value = P.f0;
+    var lp = ctx.createBiquadFilter(); lp.type = 'lowpass';
+    lp.frequency.value = P.rich; lp.Q.value = 1.1;
+    // pulse amplitude modulation at f0
+    var pulseGain = ctx.createGain(); pulseGain.gain.value = 0;
+    var lfo = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = P.f0;
+    var shaper = ctx.createWaveShaper(); shaper.curve = pulseCurve(1 + P.sharp*7);
+    lfo.connect(shaper); shaper.connect(pulseGain.gain);
+
+    saw.connect(lp); lp.connect(pulseGain); pulseGain.connect(master);
+
+    // breath noise
+    var len = Math.floor(ctx.sampleRate * 2);
+    var buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    var data = buf.getChannelData(0);
+    var seed = 12345;
+    for (var i = 0; i < len; i++){
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      data[i] = (seed / 0x3fffffff) - 1;
+    }
+    var noise = ctx.createBufferSource(); noise.buffer = buf; noise.loop = true;
+    var bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 780; bp.Q.value = 0.6;
+    var ng = ctx.createGain(); ng.gain.value = P.breath * 0.2;
+    noise.connect(bp); bp.connect(ng); ng.connect(master);
+
+    saw.start(); lfo.start(); noise.start();
+
+    A = { ctx:ctx, master:master, saw:saw, lp:lp, lfo:lfo, pulseGain:pulseGain,
+          shaper:shaper, ng:ng, shaping:1 + P.sharp*7 };
+    return true;
+  }
+
+  function pushAudio(ramp){
+    if (!A) return;
+    var t = A.ctx.currentTime, tau = ramp === false ? 0.005 : 0.04;
+    A.saw.frequency.setTargetAtTime(P.f0, t, tau);
+    A.lfo.frequency.setTargetAtTime(P.f0, t, tau);
+    A.lp.frequency.setTargetAtTime(P.rich, t, tau);
+    var k = 1 + P.sharp * 7;
+    if (Math.abs(k - A.shaping) > 0.15){
+      A.shaper.curve = pulseCurve(k);
+      A.shaping = k;
+    }
+    A.ng.gain.setTargetAtTime(P.breath * 0.2, t, tau);
+    A.master.gain.setTargetAtTime(P.playing ? P.level * 0.42 : 0, t, 0.06);
+  }
+
+  function togglePlay(){
+    if (!A && !buildAudio()){
+      el.stateTag.textContent = 'no audio engine';
+      return;
+    }
+    P.playing = !P.playing;
+    if (P.playing){
+      if (A.ctx.state === 'suspended') A.ctx.resume();
+    }
+    pushAudio(true);
+    syncUI();
+  }
+
+  /* ---------------- scope ---------------- */
+  var cv = el.scope, cx2 = cv.getContext('2d');
+  var scopeW = 900, scopeH = 300, dpr = 1, lastPeak = null;
+  var scaleEl = $('scopeScale');
+
+  function sizeScope(){
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var r = cv.getBoundingClientRect();
+    var w = Math.max(200, Math.round(r.width)), h = Math.max(80, Math.round(r.height));
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    scopeW = w; scopeH = h;
+  }
+
+  function ink(hex, a){ return 'rgba(' + hex + ',' + a + ')'; }
+
+  function drawScope(tAbs){
+    var c = cx2;
+    c.setTransform(dpr,0,0,dpr,0,0);
+    c.clearRect(0,0,scopeW,scopeH);
+
+    var padL = 34, padR = 6, padT = 8, padB = 16;
+    var w = scopeW - padL - padR, h = scopeH - padT - padB;
+    var mid = padT + h/2;
+
+    // grid: 20 ms columns
+    c.strokeStyle = 'rgba(217,229,228,1)';
+    c.lineWidth = 1;
+    var stepMs = 20, t0 = tAbs - WINDOW;
+    for (var ms = 0; ms <= WINDOW*1000 + 0.1; ms += stepMs){
+      var x = padL + (ms / (WINDOW*1000)) * w;
+      c.beginPath(); c.moveTo(x, padT); c.lineTo(x, padT + h); c.stroke();
+    }
+    // zero lines
+    c.strokeStyle = 'rgba(114,125,124,.5)';
+    c.beginPath(); c.moveTo(padL, mid); c.lineTo(padL + w, mid); c.stroke();
+
+    // waveform — sampled once, auto-gained to the window's own peak so the
+    // pulse shape is legible at any level setting
+    var N = Math.max(160, Math.round(w * 1.5));
+    var pts = new Float32Array(N + 1);
+    var peak = 0;
+    for (var i = 0; i <= N; i++){
+      var tt = t0 + (i / N) * WINDOW;
+      var v = model(tt);
+      pts[i] = v;
+      if (Math.abs(v) > peak) peak = Math.abs(v);
+    }
+    if (lastPeak !== null) peak = lastPeak + (peak - lastPeak) * 0.25; // settle, no jitter
+    lastPeak = peak;
+    var gain = peak > 0.004 ? 0.94 / peak : 0;
+
+    c.strokeStyle = '#1a696a';
+    c.lineWidth = 1.6;
+    c.lineJoin = 'round';
+    c.beginPath();
+    for (var j = 0; j <= N; j++){
+      var yy = mid - Math.max(-1, Math.min(1, pts[j] * gain)) * (h/2 - 3);
+      var xx = padL + (j / N) * w;
+      if (j === 0) c.moveTo(xx, yy); else c.lineTo(xx, yy);
+    }
+    c.stroke();
+
+    if (scaleEl){
+      scaleEl.textContent = 'peak ' + peak.toFixed(2) + ' · auto-gain';
+    }
+
+    // axis labels
+    c.fillStyle = 'rgba(114,125,124,1)';
+    c.font = '10px ui-monospace, Menlo, monospace';
+    c.textAlign = 'right'; c.textBaseline = 'middle';
+    c.fillText('peak', padL - 6, padT + 4);
+    c.fillText('0', padL - 6, mid);
+    c.fillText('−peak', padL - 6, padT + h - 4);
+    c.textAlign = 'left'; c.textBaseline = 'top';
+    c.fillText('−140 ms', padL, scopeH - 12);
+    c.textAlign = 'right';
+    c.fillText('now', padL + w, scopeH - 12);
+  }
+
+  /* ---------------- ripples ---------------- */
+  // Three arcs under the chin, expanding and fading. The rate is a legible
+  // ~1-2 Hz, not the 27 Hz fundamental: 27 Hz would strobe, not inform.
+  var rippleEls = [$('r0'), $('r1'), $('r2')];
+  var phases = [0, 0.34, 0.68];
+  var ORIGIN = [200, 284];
+
+  function stepRipples(dt){
+    if (!P.playing) return;
+    if (reduceMotion){
+      for (var j = 0; j < 3; j++){
+        rippleEls[j].setAttribute('opacity', (0.42 - j * 0.11).toFixed(3));
+        rippleEls[j].setAttribute('transform', '');
+      }
+      return;
+    }
+    var rate = 0.55 + (P.f0 - SLIDER_LO) / (SLIDER_HI - SLIDER_LO) * 1.15;
+    for (var i = 0; i < phases.length; i++){
+      phases[i] = (phases[i] + dt * rate) % 1;
+      var k = 0.70 + phases[i] * 0.42;
+      var o = (1 - phases[i]);
+      o = o * o * (0.72 + P.level * 0.28);
+      rippleEls[i].setAttribute('transform',
+        'translate(' + ORIGIN[0] + ' ' + ORIGIN[1] + ') scale(' + k.toFixed(3) + ') translate(' +
+        (-ORIGIN[0]) + ' ' + (-ORIGIN[1]) + ')');
+      rippleEls[i].setAttribute('opacity', o.toFixed(3));
+    }
+  }
+
+  /* ---------------- loop ---------------- */
+  var last = performance.now(), clock = 0;
+
+  function frame(now){
+    var dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    clock += dt;
+
+    // slow breath of the body (0.42 Hz) while purring
+    if (P.playing){
+      var b = Math.sin(clock * 2 * Math.PI * 0.42) * 0.0045;
+      el.catGroup.setAttribute('transform', 'translate(230 140) scale(' + (1 + b).toFixed(4) + ') translate(-230 -140)');
+    } else if (el.catGroup.getAttribute('transform')){
+      el.catGroup.removeAttribute('transform');
+      for (var q = 0; q < 3; q++){
+        rippleEls[q].setAttribute('opacity', '0');
+        rippleEls[q].setAttribute('transform', '');
+        phases[q] = q * 0.34;
+      }
+    }
+
+    stepRipples(dt);
+    drawScope(clock);
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------------- wiring ---------------- */
+  function bind(id, key){
+    el[id].addEventListener('input', function(){
+      P[key] = parseFloat(this.value);
+      pushAudio(true);
+      syncUI();
+    });
+  }
+  bind('f0','f0'); bind('sharp','sharp'); bind('rich','rich');
+  bind('breath','breath'); bind('level','level');
+
+  el.play.addEventListener('click', togglePlay);
+
+  el.reset.addEventListener('click', function(){
+    Object.keys(DEFAULTS).forEach(function(k){
+      P[k] = DEFAULTS[k];
+      el[k].value = String(DEFAULTS[k]);
+    });
+    // defaults are an in-band, audible purr; keep transport as-is
+    pushAudio(true);
+    syncUI();
+  });
+
+  window.addEventListener('keydown', function(e){
+    if (e.code === 'Space' && e.target === document.body){
+      e.preventDefault(); togglePlay();
+    }
+  });
+
+  window.addEventListener('resize', function(){ sizeScope(); drawScope(clock); });
+
+  // pause audio when tab hidden, resume UI state when back
+  document.addEventListener('visibilitychange', function(){
+    if (!A) return;
+    if (document.hidden && P.playing) A.ctx.suspend();
+    else if (!document.hidden && P.playing) A.ctx.resume();
+  });
+
+  sizeScope();
+  syncUI();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
